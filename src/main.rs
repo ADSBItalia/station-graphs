@@ -2,7 +2,8 @@ mod telemetry;
 
 use axum::{
     http::{header, HeaderValue},
-    routing::get,
+    response::{Html, IntoResponse},
+    routing::{get, post},
     Router,
 };
 use std::net::SocketAddr;
@@ -18,6 +19,20 @@ use tracing_subscriber::{layer::SubscriberExt, util::SubscriberInitExt};
 
 async fn health_check() -> &'static str {
     "ADSBItalia Station Graphs OK"
+}
+
+async fn serve_settings_page() -> impl IntoResponse {
+    let candidates = [
+        "./web/settings.html",
+        "/opt/adsbitalia-station-graphs/web/settings.html",
+        "/var/www/graphs/settings.html",
+    ];
+    for p in &candidates {
+        if let Ok(content) = tokio::fs::read_to_string(p).await {
+            return Html(content).into_response();
+        }
+    }
+    Html("<h1>Settings page not found</h1>".to_string()).into_response()
 }
 
 #[tokio::main]
@@ -52,7 +67,10 @@ async fn main() {
 
     let app = Router::new()
         .route("/health", get(health_check))
-        .route("/api/config", get(telemetry::handle_config))
+        .route("/settings", get(serve_settings_page))
+        .route("/settings.html", get(serve_settings_page))
+        .route("/api/config", get(telemetry::handle_config).post(telemetry::save_config))
+        .route("/api/detect", get(telemetry::handle_detect))
         .route("/api/live", get(telemetry::handle_live))
         .route("/api/history", get(telemetry::handle_history))
         .route("/api/coverage", get(telemetry::handle_coverage))

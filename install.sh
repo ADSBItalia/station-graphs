@@ -29,6 +29,22 @@ echo "    ADSBItalia Station Telemetry & RF Performance Graphs          "
 echo "    Modern Avionics Telemetry Engine for ADS-B / MLAT Stations    "
 echo "=================================================================="
 
+INSTALL_RADAR=false
+if [ -t 0 ]; then
+  echo ""
+  read -r -p "Do you want to proceed with installing ADSBItalia Station Graphs? [Y/n] " ans_graphs
+  if [[ "$ans_graphs" =~ ^[Nn] ]]; then
+    info "Installation cancelled by user."
+    exit 0
+  fi
+
+  read -r -p "Do you also want to install ADSBItalia Station Radar (Local 3D Avionics Map)? [y/N] " ans_radar
+  if [[ "$ans_radar" =~ ^[Yy] ]]; then
+    INSTALL_RADAR=true
+  fi
+  echo ""
+fi
+
 # Check and install system dependencies
 info "Checking system dependencies..."
 if command -v apt-get >/dev/null 2>&1; then
@@ -166,9 +182,14 @@ echo "=================================================================="
 success "ADSBItalia Station Graphs successfully installed and running!"
 echo "=================================================================="
 echo "Access your Station Graphs Web Dashboard at:"
-echo "  Local:   http://localhost:${DEFAULT_PORT}/"
-echo "  Network: http://${LAN_IP}:${DEFAULT_PORT}/"
+echo "  Live Graphs: http://${LAN_IP}:${DEFAULT_PORT}/"
+echo "  Web Settings: http://${LAN_IP}:${DEFAULT_PORT}/settings.html"
 echo ""
 echo "Service status: sudo systemctl status ${SERVICE_NAME}"
 echo "Service logs:   sudo journalctl -u ${SERVICE_NAME} -f"
 echo "=================================================================="
+
+if [[ "${INSTALL_RADAR}" == "true" ]]; then
+  info "Launching companion installation for ADSBItalia Station Radar..."
+  bash <(curl -sL https://raw.githubusercontent.com/ADSBItalia/station-radar/main/install.sh) || true
+fi

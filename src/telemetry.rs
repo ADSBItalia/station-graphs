@@ -24,6 +24,10 @@ pub struct StationConfig {
     pub dump_rrd: String,
     pub cpu_rrd: String,
     pub temp_rrd: String,
+    pub default_units: String,
+    pub default_lang: String,
+    pub default_range: String,
+    pub radar_url: String,
 }
 
 impl Default for StationConfig {
@@ -37,6 +41,11 @@ impl Default for StationConfig {
             .ok()
             .and_then(|v| v.parse::<f64>().ok())
             .unwrap_or(11.930735);
+
+        let mut default_units = "nautical".to_string();
+        let mut default_lang = "en".to_string();
+        let mut default_range = "24h".to_string();
+        let mut radar_url = "http://127.0.0.1:8088".to_string();
 
         // Auto-detect from /run/readsb/receiver.json if available
         for p in &["/run/readsb/receiver.json", "/run/dump1090-fa/receiver.json"] {
@@ -54,18 +63,33 @@ impl Default for StationConfig {
             }
         }
 
-        // Auto-detect config file from /opt/adsbitalia-station-graphs/config.json or /etc/adsbitalia/feeder.conf
-        if let Ok(raw) = fs::read_to_string("/opt/adsbitalia-station-graphs/config.json") {
-            if let Ok(val) = serde_json::from_str::<Value>(&raw) {
-                if let Some(n) = val.get("station_name").and_then(|v| v.as_str()) {
-                    name = n.to_string();
+        // Auto-detect config file from config.json
+        for cp in &["/opt/adsbitalia-station-graphs/config.json", "./config.json", "config.json"] {
+            if let Ok(raw) = fs::read_to_string(cp) {
+                if let Ok(val) = serde_json::from_str::<Value>(&raw) {
+                    if let Some(n) = val.get("station_name").and_then(|v| v.as_str()) {
+                        name = n.to_string();
+                    }
+                    if let Some(l) = val.get("station_lat").and_then(|v| v.as_f64()) {
+                        lat = l;
+                    }
+                    if let Some(l) = val.get("station_lon").and_then(|v| v.as_f64()) {
+                        lon = l;
+                    }
+                    if let Some(u) = val.get("default_units").and_then(|v| v.as_str()) {
+                        default_units = u.to_string();
+                    }
+                    if let Some(lg) = val.get("default_lang").and_then(|v| v.as_str()) {
+                        default_lang = lg.to_string();
+                    }
+                    if let Some(r) = val.get("default_range").and_then(|v| v.as_str()) {
+                        default_range = r.to_string();
+                    }
+                    if let Some(ru) = val.get("radar_url").and_then(|v| v.as_str()) {
+                        radar_url = ru.to_string();
+                    }
                 }
-                if let Some(l) = val.get("station_lat").and_then(|v| v.as_f64()) {
-                    lat = l;
-                }
-                if let Some(l) = val.get("station_lon").and_then(|v| v.as_f64()) {
-                    lon = l;
-                }
+                break;
             }
         }
 
@@ -121,6 +145,10 @@ impl Default for StationConfig {
             dump_rrd,
             cpu_rrd,
             temp_rrd,
+            default_units,
+            default_lang,
+            default_range,
+            radar_url,
         }
     }
 }
@@ -133,6 +161,70 @@ static FEEDER_CACHE: LazyLock<RwLock<(Instant, Value)>> =
 
 static HISTORY_CACHE: LazyLock<RwLock<HashMap<String, (Instant, Value)>>> =
     LazyLock::new(|| RwLock::new(HashMap::new()));
+
+pub fn update_config(val: Value) -> Result<StationConfig, String> {
+    let mut cfg = CONFIG.write().unwrap();
+    if let Some(n) = val.get("station_name").and_then(|v| v.as_str()) {
+        cfg.name = n.to_string();
+    }
+    if let Some(l) = val.get("station_lat").and_then(|v| v.as_f64()) {
+        cfg.lat = l;
+    }
+    if let Some(l) = val.get("station_lon").and_then(|v| v.as_f64()) {
+        cfg.lon = l;
+    }
+    if let Some(p) = val.get("aircraft_json").and_then(|v| v.as_str()) {
+        cfg.aircraft_json = p.to_string();
+    }
+    if let Some(p) = val.get("stats_json").and_then(|v| v.as_str()) {
+        cfg.stats_json = p.to_string();
+    }
+    if let Some(p) = val.get("outline_json").and_then(|v| v.as_str()) {
+        cfg.outline_json = p.to_string();
+    }
+    if let Some(p) = val.get("dump_rrd").and_then(|v| v.as_str()) {
+        cfg.dump_rrd = p.to_string();
+    }
+    if let Some(u) = val.get("default_units").and_then(|v| v.as_str()) {
+        cfg.default_units = u.to_string();
+    }
+    if let Some(lg) = val.get("default_lang").and_then(|v| v.as_str()) {
+        cfg.default_lang = lg.to_string();
+    }
+    if let Some(r) = val.get("default_range").and_then(|v| v.as_str()) {
+        cfg.default_range = r.to_string();
+    }
+    if let Some(ru) = val.get("radar_url").and_then(|v| v.as_str()) {
+        cfg.radar_url = ru.to_string();
+    }
+
+    let config_path = if Path::new("/opt/adsbitalia-station-graphs").exists() {
+        "/opt/adsbitalia-station-graphs/config.json"
+    } else {
+        "./config.json"
+    };
+
+    let json_data = json!({
+        "station_name": cfg.name,
+        "station_lat": cfg.lat,
+        "station_lon": cfg.lon,
+        "aircraft_json": cfg.aircraft_json,
+        "stats_json": cfg.stats_json,
+        "outline_json": cfg.outline_json,
+        "dump_rrd": cfg.dump_rrd,
+        "default_units": cfg.default_units,
+        "default_lang": cfg.default_lang,
+        "default_range": cfg.default_range,
+        "radar_url": cfg.radar_url,
+        "version": "1.0.0"
+    });
+
+    if let Ok(ser) = serde_json::to_string_pretty(&json_data) {
+        let _ = fs::write(config_path, ser);
+    }
+
+    Ok(cfg.clone())
+}
 
 fn haversine_nm(lat1: f64, lon1: f64, lat2: f64, lon2: f64) -> f64 {
     let r_nm = 3440.065;
@@ -347,7 +439,7 @@ fn discover_feeders() -> Value {
         }
     }
 
-    // 2. Ultrafeeder aggregators (adsb.im standard & custom)
+    // 2. Ultrafeeder aggregators
     if let Ok(output) = Command::new("docker")
         .args(["exec", "ultrafeeder", "env"])
         .output()
@@ -504,7 +596,82 @@ pub async fn handle_config() -> impl IntoResponse {
             "station_name": cfg.name,
             "station_lat": cfg.lat,
             "station_lon": cfg.lon,
+            "aircraft_json": cfg.aircraft_json,
+            "stats_json": cfg.stats_json,
+            "outline_json": cfg.outline_json,
+            "dump_rrd": cfg.dump_rrd,
+            "default_units": cfg.default_units,
+            "default_lang": cfg.default_lang,
+            "default_range": cfg.default_range,
+            "radar_url": cfg.radar_url,
             "version": "1.0.0"
+        })),
+    )
+}
+
+pub async fn save_config(Json(payload): Json<Value>) -> impl IntoResponse {
+    match update_config(payload) {
+        Ok(c) => (
+            StatusCode::OK,
+            [(header::CONTENT_TYPE, HeaderValue::from_static("application/json; charset=utf-8"))],
+            Json(json!({
+                "ok": true,
+                "config": {
+                    "station_name": c.name,
+                    "station_lat": c.lat,
+                    "station_lon": c.lon,
+                    "aircraft_json": c.aircraft_json,
+                    "stats_json": c.stats_json,
+                    "outline_json": c.outline_json,
+                    "dump_rrd": c.dump_rrd,
+                    "default_units": c.default_units,
+                    "default_lang": c.default_lang,
+                    "default_range": c.default_range,
+                    "radar_url": c.radar_url
+                }
+            })),
+        ),
+        Err(e) => (
+            StatusCode::BAD_REQUEST,
+            [(header::CONTENT_TYPE, HeaderValue::from_static("application/json; charset=utf-8"))],
+            Json(json!({"ok": false, "error": e})),
+        ),
+    }
+}
+
+pub async fn handle_detect() -> impl IntoResponse {
+    let mut detected_lat = None;
+    let mut detected_lon = None;
+    let mut readsb_found = false;
+    let mut rrd_found = false;
+
+    for p in &["/run/readsb/receiver.json", "/run/dump1090-fa/receiver.json"] {
+        if let Ok(raw) = fs::read_to_string(p) {
+            if let Ok(val) = serde_json::from_str::<Value>(&raw) {
+                detected_lat = val.get("lat").and_then(|v| v.as_f64());
+                detected_lon = val.get("lon").and_then(|v| v.as_f64());
+            }
+            readsb_found = true;
+            break;
+        }
+    }
+
+    if Path::new("/run/readsb/aircraft.json").exists() || Path::new("/run/dump1090-fa/aircraft.json").exists() {
+        readsb_found = true;
+    }
+
+    if Path::new("/run/collectd/localhost/dump1090-localhost").exists() || Path::new("/var/lib/collectd/rrd/localhost/dump1090-localhost").exists() {
+        rrd_found = true;
+    }
+
+    (
+        StatusCode::OK,
+        [(header::CONTENT_TYPE, HeaderValue::from_static("application/json; charset=utf-8"))],
+        Json(json!({
+            "detected_lat": detected_lat,
+            "detected_lon": detected_lon,
+            "readsb_detected": readsb_found,
+            "rrd_detected": rrd_found
         })),
     )
 }
@@ -608,8 +775,8 @@ pub async fn handle_live() -> impl IntoResponse {
     let mut total_messages = 0u64;
     let mut bits_112 = 0u64;
     let mut bits_56 = 0u64;
-    let mut gain_db = 40.2;
-    let mut est_ppm = -4.0;
+    let gain_db = 40.2;
+    let est_ppm = -4.0;
     let mut snr_db = 20.0;
     let mut rf_signal = -10.0;
     let mut rf_noise = -30.0;
@@ -713,7 +880,7 @@ pub struct HistoryQuery {
 
 pub async fn handle_history(Query(q): Query<HistoryQuery>) -> impl IntoResponse {
     let cfg = CONFIG.read().unwrap().clone();
-    let range = q.range.unwrap_or_else(|| "24h".to_string());
+    let range = q.range.unwrap_or_else(|| cfg.default_range.clone());
     let range_clean = match range.as_str() {
         "1h" | "6h" | "24h" | "48h" | "7d" | "14d" | "30d" | "90d" | "365d" => range.as_str(),
         _ => "24h",

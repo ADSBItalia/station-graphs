@@ -1,15 +1,9 @@
-FROM rust:1.80-alpine AS builder
-RUN apk add --no-cache musl-dev
+FROM ubuntu:24.04
+ENV DEBIAN_FRONTEND=noninteractive
+RUN apt-get update && apt-get install -y --no-install-recommends rrdtool ca-certificates tzdata && rm -rf /var/lib/apt/lists/*
 WORKDIR /app
-COPY Cargo.toml ./
-COPY src ./src
-RUN cargo build --release
-
-FROM alpine:3.20
-RUN apk add --no-cache rrdtool ca-certificates tzdata
-WORKDIR /app
-COPY --from=builder /app/target/release/adsbitalia-station-graphs /app/
-COPY web ./web
+COPY adsbitalia-station-graphs /app/adsbitalia-station-graphs
+COPY web /app/web
 ENV PORT=8085
 EXPOSE 8085
 CMD ["/app/adsbitalia-station-graphs"]
