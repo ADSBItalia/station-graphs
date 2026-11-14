@@ -1,0 +1,17 @@
+[package]
+name = "adsbitalia-station-graphs"
+version = "1.0.0"
+edition = "2021"
+authors = ["ADSBItalia <info@adsbitalia.it>"]
+description = "Modern, high-performance station telemetry, RF signal metrics and interactive performance graphs for ADS-B / MLAT stations"
+
+[dependencies]
+axum = "0.7"
+tokio = { version = "1.38", features = ["full"] }
+tower = "0.4"
+tower-http = { version = "0.5", features = ["fs", "cors", "trace", "compression-gzip", "set-header"] }
+serde = { version = "1.0", features = ["derive"] }
+serde_json = "1.0"
+chrono = { version = "0.4", features = ["serde"] }
+tracing = "0.1"
+tracing-subscriber = { version = "0.3", features = ["env-filter"] }

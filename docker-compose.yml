@@ -1,0 +1,16 @@
+version: '3.8'
+
+services:
+  station-graphs:
+    image: ghcr.io/adsbitalia/station-graphs:latest
+    build: .
+    container_name: adsbitalia-station-graphs
+    restart: unless-stopped
+    ports:
+      - "8085:8085"
+    volumes:
+      - /run/readsb:/run/readsb:ro
+      - /run/collectd:/run/collectd:ro
+    environment:
+      - PORT=8085
+      - STATION_NAME=ADSB Station
