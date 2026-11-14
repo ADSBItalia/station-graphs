@@ -2020,6 +2020,36 @@
       fetchPolarCoverage();
     });
 
+    function applyStationTheme(theme) {
+      if (!theme) return;
+      if (theme.primary_color) {
+        document.documentElement.style.setProperty('--cyan', theme.primary_color);
+      }
+      if (theme.accent_color) {
+        document.documentElement.style.setProperty('--blue', theme.accent_color);
+        const glow = theme.accent_color.startsWith('#') ? (theme.accent_color + '55') : theme.accent_color;
+        document.documentElement.style.setProperty('--border-accent', glow);
+      }
+      if (theme.bg_dark) {
+        document.documentElement.style.setProperty('--bg-dark', theme.bg_dark);
+        document.body.style.backgroundColor = theme.bg_dark;
+      }
+      if (charts && charts.polar && charts.polar.data && charts.polar.data.datasets[0]) {
+        charts.polar.data.datasets[0].borderColor = theme.primary_color || '#00f0ff';
+        charts.polar.data.datasets[0].pointBackgroundColor = theme.primary_color || '#00f0ff';
+        charts.polar.update('none');
+      }
+      if (charts && charts.aircraft && charts.aircraft.data && charts.aircraft.data.datasets[0]) {
+        charts.aircraft.data.datasets[0].borderColor = theme.accent_color || '#38bdf8';
+        charts.aircraft.update('none');
+      }
+    }
+
+    try {
+      const cachedTheme = JSON.parse(localStorage.getItem('adsb_theme') || 'null');
+      if (cachedTheme) applyStationTheme(cachedTheme);
+    } catch (e) {}
+
     async function loadStationConfig() {
       try {
         const res = await fetch(`${API_BASE}/config`);
@@ -2035,6 +2065,10 @@
           if (cfg.station_lat && cfg.station_lon) {
             const sub = document.getElementById('txtStationSubtitle');
             if (sub) sub.textContent = `${cfg.station_lat.toFixed(4)}° N, ${cfg.station_lon.toFixed(4)}° E · 1090 MHz SDR Receiver`;
+          }
+          if (cfg.theme) {
+            applyStationTheme(cfg.theme);
+            localStorage.setItem('adsb_theme', JSON.stringify(cfg.theme));
           }
         }
       } catch (e) {}

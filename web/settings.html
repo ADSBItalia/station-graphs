@@ -195,6 +195,103 @@
       border: 1px solid rgba(245, 158, 11, 0.3);
     }
 
+    .presets-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(130px, 1fr));
+      gap: 12px;
+      margin-bottom: 20px;
+    }
+    .preset-card {
+      background: rgba(255, 255, 255, 0.03);
+      border: 1px solid rgba(255, 255, 255, 0.1);
+      border-radius: 10px;
+      padding: 12px;
+      cursor: pointer;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 8px;
+      transition: all 0.2s ease;
+      text-align: center;
+    }
+    .preset-card:hover {
+      background: rgba(255, 255, 255, 0.08);
+      border-color: var(--border-accent);
+    }
+    .preset-card.active {
+      border-color: var(--cyan);
+      background: rgba(56, 189, 248, 0.15);
+      box-shadow: 0 0 14px rgba(56, 189, 248, 0.35);
+    }
+    .color-dot {
+      width: 26px;
+      height: 26px;
+      border-radius: 50%;
+      border: 2px solid #fff;
+      box-shadow: 0 0 8px rgba(0,0,0,0.5);
+    }
+    .preset-name {
+      font-size: 0.8rem;
+      font-weight: 700;
+      color: var(--text-main);
+    }
+    .color-picker-row {
+      display: flex;
+      gap: 10px;
+      align-items: center;
+    }
+    .color-picker-row input[type="color"] {
+      width: 44px;
+      height: 40px;
+      padding: 2px;
+      border-radius: 8px;
+      border: 1px solid var(--border-card);
+      background: rgba(15, 23, 42, 0.6);
+      cursor: pointer;
+    }
+    .color-picker-row input[type="text"] {
+      flex: 1;
+      font-family: 'JetBrains Mono', monospace;
+      text-transform: uppercase;
+    }
+    .theme-preview-box {
+      margin-top: 18px;
+      padding: 16px 20px;
+      border-radius: 10px;
+      background: var(--bg-dark);
+      border: 1px solid var(--border-accent);
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      flex-wrap: wrap;
+      gap: 14px;
+      transition: all 0.2s ease;
+    }
+    .preview-stat {
+      display: flex;
+      flex-direction: column;
+      gap: 4px;
+    }
+    .preview-val {
+      font-size: 1.5rem;
+      font-weight: 800;
+      font-family: 'JetBrains Mono', monospace;
+      color: var(--cyan);
+    }
+    .preview-pill {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      padding: 6px 14px;
+      border-radius: 999px;
+      font-size: 0.8rem;
+      font-weight: 700;
+      border: 1px solid var(--cyan);
+      color: var(--cyan);
+      background: rgba(0, 240, 255, 0.1);
+      transition: all 0.2s ease;
+    }
+
     .save-bar {
       position: sticky;
       bottom: 20px;
@@ -323,7 +420,78 @@
       </div>
     </div>
 
-    <!-- 4. Decoder & Data Paths -->
+    <!-- 4. Theme & Color Customization -->
+    <div class="card">
+      <div class="card-title">🎨 Theme &amp; Color Customization</div>
+      <div class="card-desc">Personalize your telemetry dashboard palette with 1-click avionics presets or custom color pickers. Zero manual JSON editing.</div>
+      
+      <div class="presets-grid">
+        <div class="preset-card active" id="cardPreset_cyan" onclick="applyThemePreset('cyan')">
+          <div class="color-dot" style="background: #00f0ff;"></div>
+          <div class="preset-name">Cyan Avionics</div>
+        </div>
+        <div class="preset-card" id="cardPreset_emerald" onclick="applyThemePreset('emerald')">
+          <div class="color-dot" style="background: #10b981;"></div>
+          <div class="preset-name">Emerald Radar</div>
+        </div>
+        <div class="preset-card" id="cardPreset_amber" onclick="applyThemePreset('amber')">
+          <div class="color-dot" style="background: #f59e0b;"></div>
+          <div class="preset-name">Amber Tactical</div>
+        </div>
+        <div class="preset-card" id="cardPreset_purple" onclick="applyThemePreset('purple')">
+          <div class="color-dot" style="background: #a855f7;"></div>
+          <div class="preset-name">Violet Horizon</div>
+        </div>
+        <div class="preset-card" id="cardPreset_monochrome" onclick="applyThemePreset('monochrome')">
+          <div class="color-dot" style="background: #e2e8f0;"></div>
+          <div class="preset-name">Stealth Mono</div>
+        </div>
+        <div class="preset-card" id="cardPreset_crimson" onclick="applyThemePreset('crimson')">
+          <div class="color-dot" style="background: #ef4444;"></div>
+          <div class="preset-name">Crimson Ops</div>
+        </div>
+      </div>
+
+      <div class="form-grid">
+        <div class="form-group">
+          <label for="primaryColorPicker">Primary / Chart Accent Color</label>
+          <div class="color-picker-row">
+            <input type="color" id="primaryColorPicker" value="#00f0ff" oninput="onColorChange()">
+            <input type="text" id="primaryColorText" value="#00f0ff" onchange="onColorTextChange()">
+          </div>
+        </div>
+        <div class="form-group">
+          <label for="accentGlowPicker">Border &amp; Glow Accent</label>
+          <div class="color-picker-row">
+            <input type="color" id="accentGlowPicker" value="#38bdf8" oninput="onColorChange()">
+            <input type="text" id="accentGlowText" value="#38bdf8" onchange="onColorTextChange()">
+          </div>
+        </div>
+        <div class="form-group">
+          <label for="bgDarkPicker">Background Dark Tone</label>
+          <div class="color-picker-row">
+            <input type="color" id="bgDarkPicker" value="#07090e" oninput="onColorChange()">
+            <input type="text" id="bgDarkText" value="#07090e" onchange="onColorTextChange()">
+          </div>
+        </div>
+      </div>
+
+      <!-- Live Theme Preview -->
+      <div class="theme-preview-box" id="themePreviewBox">
+        <div class="preview-stat">
+          <span style="font-size:0.75rem; color:var(--text-muted); text-transform:uppercase; font-weight:700;">Live Preview</span>
+          <div class="preview-val" id="prevVal">1,482 msg/s</div>
+        </div>
+        <div class="preview-pill" id="prevPill">
+          <span>●</span> <span>SDR GAIN: 49.6 dB</span>
+        </div>
+        <div style="font-size:0.8rem; color:var(--text-muted);">
+          Cockpit Palette: <strong id="prevThemeName" style="color:#fff;">Cyan Avionics</strong>
+        </div>
+      </div>
+    </div>
+
+    <!-- 5. Decoder & Data Paths -->
     <div class="card">
       <div class="card-title">💾 Decoder Data Sources &amp; Paths</div>
       <div class="card-desc">Local paths scanned by the native Rust telemetry daemon for aircraft frames and RRD metrics.</div>
@@ -362,6 +530,95 @@
   <script>
     "use strict";
 
+    const THEME_PRESETS = {
+      cyan: { name: 'Cyan Avionics', primary: '#00f0ff', accent: '#38bdf8', bg: '#07090e' },
+      emerald: { name: 'Emerald Radar', primary: '#10b981', accent: '#34d399', bg: '#05130e' },
+      amber: { name: 'Amber Tactical', primary: '#f59e0b', accent: '#fbbf24', bg: '#140f06' },
+      purple: { name: 'Violet Horizon', primary: '#a855f7', accent: '#c084fc', bg: '#0c0817' },
+      monochrome: { name: 'Stealth Mono', primary: '#e2e8f0', accent: '#94a3b8', bg: '#0b0f19' },
+      crimson: { name: 'Crimson Ops', primary: '#ef4444', accent: '#f87171', bg: '#160808' }
+    };
+    let activePreset = 'cyan';
+
+    function applyThemePreset(key) {
+      const p = THEME_PRESETS[key];
+      if (!p) return;
+      activePreset = key;
+
+      document.querySelectorAll('.preset-card').forEach(c => c.classList.remove('active'));
+      const activeCard = document.getElementById(`cardPreset_${key}`);
+      if (activeCard) activeCard.classList.add('active');
+
+      document.getElementById('primaryColorPicker').value = p.primary;
+      document.getElementById('primaryColorText').value = p.primary;
+      document.getElementById('accentGlowPicker').value = p.accent;
+      document.getElementById('accentGlowText').value = p.accent;
+      document.getElementById('bgDarkPicker').value = p.bg;
+      document.getElementById('bgDarkText').value = p.bg;
+
+      applyLiveTheme(p.primary, p.accent, p.bg, p.name);
+    }
+
+    function onColorChange() {
+      activePreset = 'custom';
+      document.querySelectorAll('.preset-card').forEach(c => c.classList.remove('active'));
+
+      const prim = document.getElementById('primaryColorPicker').value;
+      const acc = document.getElementById('accentGlowPicker').value;
+      const bg = document.getElementById('bgDarkPicker').value;
+
+      document.getElementById('primaryColorText').value = prim;
+      document.getElementById('accentGlowText').value = acc;
+      document.getElementById('bgDarkText').value = bg;
+
+      applyLiveTheme(prim, acc, bg, 'Custom');
+    }
+
+    function onColorTextChange() {
+      activePreset = 'custom';
+      document.querySelectorAll('.preset-card').forEach(c => c.classList.remove('active'));
+
+      let prim = document.getElementById('primaryColorText').value.trim();
+      let acc = document.getElementById('accentGlowText').value.trim();
+      let bg = document.getElementById('bgDarkText').value.trim();
+
+      if (!prim.startsWith('#')) prim = '#' + prim;
+      if (!acc.startsWith('#')) acc = '#' + acc;
+      if (!bg.startsWith('#')) bg = '#' + bg;
+
+      if (/^#[0-9A-Fa-f]{6}$/.test(prim)) document.getElementById('primaryColorPicker').value = prim;
+      if (/^#[0-9A-Fa-f]{6}$/.test(acc)) document.getElementById('accentGlowPicker').value = acc;
+      if (/^#[0-9A-Fa-f]{6}$/.test(bg)) document.getElementById('bgDarkPicker').value = bg;
+
+      applyLiveTheme(prim, acc, bg, 'Custom');
+    }
+
+    function applyLiveTheme(primaryColor, accentColor, bgColor, themeName) {
+      document.documentElement.style.setProperty('--cyan', primaryColor);
+      document.documentElement.style.setProperty('--blue', accentColor);
+      document.documentElement.style.setProperty('--border-accent', accentColor + '66');
+      document.documentElement.style.setProperty('--bg-dark', bgColor);
+
+      const prevVal = document.getElementById('prevVal');
+      if (prevVal) prevVal.style.color = primaryColor;
+
+      const prevPill = document.getElementById('prevPill');
+      if (prevPill) {
+        prevPill.style.color = primaryColor;
+        prevPill.style.borderColor = primaryColor;
+        prevPill.style.backgroundColor = primaryColor + '1f';
+      }
+
+      const prevBox = document.getElementById('themePreviewBox');
+      if (prevBox) {
+        prevBox.style.backgroundColor = bgColor;
+        prevBox.style.borderColor = accentColor + '66';
+      }
+
+      const prevName = document.getElementById('prevThemeName');
+      if (prevName) prevName.textContent = themeName || 'Custom';
+    }
+
     async function loadCurrentConfig() {
       try {
         const res = await fetch('/api/config');
@@ -382,6 +639,30 @@
         const radarUrl = d.radar_url || `${window.location.protocol}//${window.location.hostname}:8088`;
         document.getElementById('radar_url').value = radarUrl;
         document.getElementById('linkRadarMap').href = radarUrl;
+
+        // Populate Theme
+        if (d.theme) {
+          activePreset = d.theme.preset || 'cyan';
+          const p = THEME_PRESETS[activePreset];
+          const prim = d.theme.primary_color || (p ? p.primary : '#00f0ff');
+          const acc = d.theme.accent_color || (p ? p.accent : '#38bdf8');
+          const bg = d.theme.bg_dark || (p ? p.bg : '#07090e');
+
+          document.querySelectorAll('.preset-card').forEach(c => c.classList.remove('active'));
+          const activeCard = document.getElementById(`cardPreset_${activePreset}`);
+          if (activeCard) activeCard.classList.add('active');
+
+          document.getElementById('primaryColorPicker').value = prim;
+          document.getElementById('primaryColorText').value = prim;
+          document.getElementById('accentGlowPicker').value = acc;
+          document.getElementById('accentGlowText').value = acc;
+          document.getElementById('bgDarkPicker').value = bg;
+          document.getElementById('bgDarkText').value = bg;
+
+          applyLiveTheme(prim, acc, bg, p ? p.name : 'Custom');
+        } else {
+          applyThemePreset('cyan');
+        }
       } catch (e) {
         console.error('Failed to load config:', e);
       }
@@ -455,7 +736,13 @@
         default_units: document.getElementById('default_units').value,
         default_range: document.getElementById('default_range').value,
         default_lang: document.getElementById('default_lang').value,
-        radar_url: document.getElementById('radar_url').value.trim()
+        radar_url: document.getElementById('radar_url').value.trim(),
+        theme: {
+          preset: activePreset,
+          primary_color: document.getElementById('primaryColorPicker').value,
+          accent_color: document.getElementById('accentGlowPicker').value,
+          bg_dark: document.getElementById('bgDarkPicker').value
+        }
       };
 
       try {
@@ -468,6 +755,7 @@
           showToast('✅ Configuration saved successfully! Live telemetry updated.', 'success');
           localStorage.setItem('adsb_lang', payload.default_lang);
           localStorage.setItem('units_metric', payload.default_units === 'metric' ? 'true' : 'false');
+          localStorage.setItem('adsb_theme', JSON.stringify(payload.theme));
         } else {
           showToast('❌ Server rejected configuration update.', 'error');
         }

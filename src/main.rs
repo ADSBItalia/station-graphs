@@ -3,7 +3,7 @@ mod telemetry;
 use axum::{
     http::{header, HeaderValue},
     response::{Html, IntoResponse},
-    routing::{get, post},
+    routing::get,
     Router,
 };
 use std::net::SocketAddr;

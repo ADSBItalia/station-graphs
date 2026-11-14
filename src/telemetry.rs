@@ -13,6 +13,25 @@ use std::process::Command;
 use std::sync::{LazyLock, RwLock};
 use std::time::{Instant, SystemTime, UNIX_EPOCH};
 
+#[derive(Clone, Debug, serde::Serialize, serde::Deserialize)]
+pub struct ThemeConfig {
+    pub preset: String,
+    pub primary_color: String,
+    pub accent_color: String,
+    pub bg_dark: String,
+}
+
+impl Default for ThemeConfig {
+    fn default() -> Self {
+        Self {
+            preset: "cyan".to_string(),
+            primary_color: "#00f0ff".to_string(),
+            accent_color: "rgba(56, 189, 248, 0.35)".to_string(),
+            bg_dark: "#07090e".to_string(),
+        }
+    }
+}
+
 #[derive(Clone, Debug)]
 pub struct StationConfig {
     pub name: String,
@@ -28,6 +47,7 @@ pub struct StationConfig {
     pub default_lang: String,
     pub default_range: String,
     pub radar_url: String,
+    pub theme: ThemeConfig,
 }
 
 impl Default for StationConfig {
@@ -46,6 +66,7 @@ impl Default for StationConfig {
         let mut default_lang = "en".to_string();
         let mut default_range = "24h".to_string();
         let mut radar_url = "http://127.0.0.1:8088".to_string();
+        let mut theme = ThemeConfig::default();
 
         // Auto-detect from /run/readsb/receiver.json if available
         for p in &["/run/readsb/receiver.json", "/run/dump1090-fa/receiver.json"] {
@@ -87,6 +108,20 @@ impl Default for StationConfig {
                     }
                     if let Some(ru) = val.get("radar_url").and_then(|v| v.as_str()) {
                         radar_url = ru.to_string();
+                    }
+                    if let Some(t) = val.get("theme") {
+                        if let Some(p) = t.get("preset").and_then(|v| v.as_str()) {
+                            theme.preset = p.to_string();
+                        }
+                        if let Some(pc) = t.get("primary_color").and_then(|v| v.as_str()) {
+                            theme.primary_color = pc.to_string();
+                        }
+                        if let Some(ac) = t.get("accent_color").and_then(|v| v.as_str()) {
+                            theme.accent_color = ac.to_string();
+                        }
+                        if let Some(bg) = t.get("bg_dark").and_then(|v| v.as_str()) {
+                            theme.bg_dark = bg.to_string();
+                        }
                     }
                 }
                 break;
@@ -149,6 +184,7 @@ impl Default for StationConfig {
             default_lang,
             default_range,
             radar_url,
+            theme,
         }
     }
 }
@@ -197,6 +233,20 @@ pub fn update_config(val: Value) -> Result<StationConfig, String> {
     if let Some(ru) = val.get("radar_url").and_then(|v| v.as_str()) {
         cfg.radar_url = ru.to_string();
     }
+    if let Some(t) = val.get("theme") {
+        if let Some(p) = t.get("preset").and_then(|v| v.as_str()) {
+            cfg.theme.preset = p.to_string();
+        }
+        if let Some(pc) = t.get("primary_color").and_then(|v| v.as_str()) {
+            cfg.theme.primary_color = pc.to_string();
+        }
+        if let Some(ac) = t.get("accent_color").and_then(|v| v.as_str()) {
+            cfg.theme.accent_color = ac.to_string();
+        }
+        if let Some(bg) = t.get("bg_dark").and_then(|v| v.as_str()) {
+            cfg.theme.bg_dark = bg.to_string();
+        }
+    }
 
     let config_path = if Path::new("/opt/adsbitalia-station-graphs").exists() {
         "/opt/adsbitalia-station-graphs/config.json"
@@ -216,6 +266,12 @@ pub fn update_config(val: Value) -> Result<StationConfig, String> {
         "default_lang": cfg.default_lang,
         "default_range": cfg.default_range,
         "radar_url": cfg.radar_url,
+        "theme": {
+            "preset": cfg.theme.preset,
+            "primary_color": cfg.theme.primary_color,
+            "accent_color": cfg.theme.accent_color,
+            "bg_dark": cfg.theme.bg_dark
+        },
         "version": "1.0.0"
     });
 
@@ -604,6 +660,12 @@ pub async fn handle_config() -> impl IntoResponse {
             "default_lang": cfg.default_lang,
             "default_range": cfg.default_range,
             "radar_url": cfg.radar_url,
+            "theme": {
+                "preset": cfg.theme.preset,
+                "primary_color": cfg.theme.primary_color,
+                "accent_color": cfg.theme.accent_color,
+                "bg_dark": cfg.theme.bg_dark
+            },
             "version": "1.0.0"
         })),
     )
@@ -627,7 +689,13 @@ pub async fn save_config(Json(payload): Json<Value>) -> impl IntoResponse {
                     "default_units": c.default_units,
                     "default_lang": c.default_lang,
                     "default_range": c.default_range,
-                    "radar_url": c.radar_url
+                    "radar_url": c.radar_url,
+                    "theme": {
+                        "preset": c.theme.preset,
+                        "primary_color": c.theme.primary_color,
+                        "accent_color": c.theme.accent_color,
+                        "bg_dark": c.theme.bg_dark
+                    }
                 }
             })),
         ),

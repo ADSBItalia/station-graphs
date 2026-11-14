@@ -27,6 +27,7 @@
   - Host hardware metrics: CPU utilization % and core temperature
 - **🌐 Autonomous Feeder Discovery**: Automatically detects active feeder services and Docker containers (`adsbitalia`, `ultrafeeder`, `flightradar24`, `flightaware`, `radarbox`, `planefinder`, `airplanes.live`, `adsb.lol`, `theairtraffic`, and more).
 - **🧭 360° Antenna Reception Polar Diagram**: Real-time azimuthal coverage contour calculated dynamically from tracked aircraft positions.
+- **🎨 Interactive Web Control Panel (`/settings`)**: Zero-JSON web configuration GUI with 1-click GPS auto-fill, decoder detection, and customizable color schemes (Cyan Avionics, Emerald Radar, Amber Tactical, Violet Horizon, Stealth Mono, Crimson Ops, or custom hex color pickers).
 - **🌍 Bilingual & Units Toggle**: Seamless one-click switching between **English** and **Italian**, and between **Nautical (NM/ft)** and **Metric (km/m)** units.
 - **🔗 Seamless Station Radar Integration**: Direct link to [ADSBItalia Station Radar](https://github.com/ADSBItalia/station-radar) running on port `8088`.
 
