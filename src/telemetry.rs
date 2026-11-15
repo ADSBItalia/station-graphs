@@ -1,3 +1,16 @@
+pub fn read_json_source(target: &str) -> Option<String> {
+    if target.starts_with("http://") || target.starts_with("https://") {
+        ureq::get(target)
+            .call()
+            .ok()
+            .and_then(|r| r.into_body().read_to_string().ok())
+    } else if Path::new(target).exists() {
+        fs::read_to_string(target).ok()
+    } else {
+        None
+    }
+}
+
 use axum::{
     extract::Query,
     http::{header, HeaderValue, StatusCode},
@@ -146,12 +159,23 @@ impl Default for StationConfig {
             std::env::var("AIRCRAFT_URL").or_else(|_| std::env::var("AIRCRAFT_JSON")).ok()
         });
 
-        // Detect aircraft JSON directory
+        // Detect aircraft, stats, and outline JSON paths or HTTP URLs
         let (aircraft_json, stats_json, outline_json) = if let Some(ref custom_ac) = env_aircraft {
+            let base = custom_ac.trim_end_matches("/aircraft.json").trim_end_matches("/data");
+            let stats = if custom_ac.starts_with("http://") || custom_ac.starts_with("https://") {
+                format!("{}/data/stats.json", base)
+            } else {
+                "/run/readsb/stats.json".to_string()
+            };
+            let outline = if custom_ac.starts_with("http://") || custom_ac.starts_with("https://") {
+                format!("{}/data/outline.json", base)
+            } else {
+                "/run/readsb/outline.json".to_string()
+            };
             (
                 custom_ac.clone(),
-                "/run/readsb/stats.json".to_string(),
-                "/run/readsb/outline.json".to_string(),
+                stats,
+                outline,
             )
         } else if Path::new("/run/readsb/aircraft.json").exists() {
             (
@@ -950,7 +974,17 @@ pub async fn handle_live() -> impl IntoResponse {
     let mut cpr_local_ok = 0u64;
     let mut cpr_filtered = 0u64;
 
-    if let Ok(raw) = fs::read_to_string(&cfg.stats_json) {
+    let stats_raw_opt = read_json_source(&cfg.stats_json).or_else(|| {
+        if cfg.stats_json.starts_with("http://") || cfg.stats_json.starts_with("https://") {
+            let alt = cfg.stats_json.replace("/data/stats.json", "/stats.json");
+            read_json_source(&alt)
+        } else {
+            read_json_source("/run/readsb/stats.json")
+                .or_else(|| read_json_source("/run/dump1090-fa/stats.json"))
+        }
+    });
+
+    if let Some(raw) = stats_raw_opt {
         if let Ok(st) = serde_json::from_str::<Value>(&raw) {
             let last1min = st.get("last1min");
             let total = st.get("total");
@@ -1191,7 +1225,18 @@ pub async fn handle_history(Query(q): Query<HistoryQuery>) -> impl IntoResponse 
 
 pub async fn handle_coverage() -> impl IntoResponse {
     let cfg = CONFIG.read().unwrap().clone();
-    if let Ok(raw) = fs::read_to_string(&cfg.outline_json) {
+    let outline_raw_opt = read_json_source(&cfg.outline_json).or_else(|| {
+        if cfg.outline_json.starts_with("http://") || cfg.outline_json.starts_with("https://") {
+            let alt1 = cfg.outline_json.replace("/data/outline.json", "/tar1090/data/outline.json");
+            let alt2 = cfg.outline_json.replace("/data/outline.json", "/outline.json");
+            read_json_source(&alt1).or_else(|| read_json_source(&alt2))
+        } else {
+            read_json_source("/run/readsb/outline.json")
+                .or_else(|| read_json_source("/run/dump1090-fa/outline.json"))
+        }
+    });
+
+    if let Some(raw) = outline_raw_opt {
         if let Ok(data) = serde_json::from_str::<Value>(&raw) {
             let mut points: Vec<Value> = Vec::new();
             if let Some(pts) = data.get("actualRange").and_then(|a| a.get("last24h")).and_then(|l| l.get("points")).and_then(|p| p.as_array()) {

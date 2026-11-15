@@ -4,20 +4,25 @@ services:
   # ADSBItalia Station Graphs (RF Signal Telemetry & Performance Dashboard)
   station-graphs:
     image: ghcr.io/adsbitalia/station-graphs:latest
-    build: .
     container_name: adsbitalia-station-graphs
     restart: unless-stopped
     ports:
       - "8085:8085"
-    volumes:
-      # Option A: Bare-metal readsb and collectd on host
-      - /run/readsb:/run/readsb:ro
-      - /run/collectd:/run/collectd:ro
-      # Option B: Ultrafeeder host mount (uncomment if using Ultrafeeder)
-      # - /opt/adsb/ultrafeeder/graphs1090:/opt/adsb/ultrafeeder/graphs1090:ro
     environment:
       - PORT=8085
       - STATION_NAME=ADS-B Station
-      # Option B: For Ultrafeeder or containerized stacks, uncomment below:
-      # - TAR1090_URL=http://ultrafeeder/
-      # - COLLECTD_RRD_DIR=/opt/adsb/ultrafeeder/graphs1090
+      # Containerized / Ultrafeeder setup: point to the feeder URL (HTTP)
+      - TAR1090_URL=http://ultrafeeder/
+      # Optional: custom path to collectd RRD directory
+      # - COLLECTD_RRD_DIR=/opt/graphs1090
+    volumes:
+      # Option 1 (Bare-metal): Mount local collectd RRD and readsb runtime
+      # - /run/collectd:/run/collectd:ro
+      # - /run/readsb:/run/readsb:ro
+
+      # Option 2 (Ultrafeeder): Mount the ultrafeeder collectd volume or host dir
+      # - /opt/adsb/ultrafeeder/graphs1090:/run/collectd:ro
+      # - ultrafeeder_graphs1090:/run/collectd:ro
+
+      # Configuration persistence
+      - ./config.json:/app/config.json
