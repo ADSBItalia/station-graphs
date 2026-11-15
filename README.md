@@ -86,18 +86,17 @@ services:
 
 ---
 
-## 🛠️ Configuration (`config.json`)
+## 🛠️ Web Control Panel & Customization (Zero JSON Editing)
 
-The configuration file is stored at `/opt/adsbitalia-station-graphs/config.json`:
+Station Graphs features a built-in **Avionics Web Settings Panel** accessible directly from your browser:
 
-```json
-{
-  "station_name": "My ADS-B Station",
-  "port": 8085
-}
-```
+👉 **`http://<YOUR-IP>:8085/settings.html`**
 
-Station latitude, longitude, and demodulator paths are auto-discovered from `/run/readsb/receiver.json` or `/etc/adsbitalia/feeder.conf`.
+No manual terminal or JSON editing is required:
+* **🏷️ Station Identity**: Configure Station Name, Subtitle, and Antenna Coordinates (with 1-click GPS auto-detect).
+* **🎨 Avionics Color Palette & Themes**: Choose between 6 avionics presets (*Cyan Avionics*, *Emerald Radar*, *Amber Tactical*, *Violet Horizon*, *Stealth Mono*, *Crimson Ops*) or customize your own primary, accent, and canvas colors with interactive color pickers and live real-time preview.
+* **📡 Companion Radar Navigation**: Connect your local or remote Radar map (e.g. `http://<YOUR-IP>:8088/`) for seamless 1-click header navigation.
+* **💾 Instant Safe Saving**: Settings are validated and applied live to all charts and polar graphs with zero service restart.
 
 ---
 
