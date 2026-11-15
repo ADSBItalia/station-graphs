@@ -51,22 +51,37 @@ The installer will:
 
 ## 🐳 Docker Deployment
 
-You can also run Station Graphs directly with Docker or Docker Compose:
+You can run Station Graphs directly with Docker or Docker Compose. It seamlessly supports bare-metal ADS-B stacks (`readsb`, `dump1090-fa`) and containerized setups (**Ultrafeeder** / `docker-adsb-ultrafeeder`).
 
+### Standard Bare-Metal / Native read:
 ```bash
-docker run -d \
-  --name adsbitalia-station-graphs \
-  --restart unless-stopped \
-  -p 8085:8085 \
-  -v /run/readsb:/run/readsb:ro \
-  -v /run/collectd:/run/collectd:ro \
-  ghcr.io/adsbitalia/station-graphs:latest
+git clone https://github.com/ADSBItalia/station-graphs.git
+cd station-graphs
+docker compose up -d --build
 ```
 
-Or using `docker-compose.yml`:
+### With Ultrafeeder (Containerized Stack):
+If running alongside Ultrafeeder in Docker, attach to its network and connect via HTTP:
 
-```bash
-docker compose up -d
+```yaml
+version: '3.8'
+
+services:
+  station-graphs:
+    build: https://github.com/ADSBItalia/station-graphs.git#main
+    image: ghcr.io/adsbitalia/station-graphs:latest
+    container_name: adsbitalia-station-graphs
+    restart: unless-stopped
+    ports:
+      - "8085:8085"
+    volumes:
+      # Mount Ultrafeeder's collectd persistent data directory:
+      - /opt/adsb/ultrafeeder/graphs1090:/opt/adsb/ultrafeeder/graphs1090:ro
+    environment:
+      - PORT=8085
+      - STATION_NAME=My ADS-B Station
+      - AIRCRAFT_URL=http://ultrafeeder/data/aircraft.json
+      - COLLECTD_RRD_DIR=/opt/adsb/ultrafeeder/graphs1090
 ```
 
 ---

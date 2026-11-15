@@ -128,8 +128,18 @@ impl Default for StationConfig {
             }
         }
 
+        // Environment variables override
+        let env_rrd = std::env::var("COLLECTD_RRD_DIR").or_else(|_| std::env::var("RRD_DIR")).ok();
+        let env_aircraft = std::env::var("AIRCRAFT_URL").or_else(|_| std::env::var("AIRCRAFT_JSON")).ok();
+
         // Detect aircraft JSON directory
-        let (aircraft_json, stats_json, outline_json) = if Path::new("/run/readsb/aircraft.json").exists() {
+        let (aircraft_json, stats_json, outline_json) = if let Some(ref custom_ac) = env_aircraft {
+            (
+                custom_ac.clone(),
+                "/run/readsb/stats.json".to_string(),
+                "/run/readsb/outline.json".to_string(),
+            )
+        } else if Path::new("/run/readsb/aircraft.json").exists() {
             (
                 "/run/readsb/aircraft.json".to_string(),
                 "/run/readsb/stats.json".to_string(),
@@ -141,34 +151,54 @@ impl Default for StationConfig {
                 "/run/dump1090-fa/stats.json".to_string(),
                 "/run/dump1090-fa/outline.json".to_string(),
             )
+        } else if Path::new("/opt/adsb/ultrafeeder/readsb/aircraft.json").exists() {
+            (
+                "/opt/adsb/ultrafeeder/readsb/aircraft.json".to_string(),
+                "/opt/adsb/ultrafeeder/readsb/stats.json".to_string(),
+                "/opt/adsb/ultrafeeder/readsb/outline.json".to_string(),
+            )
         } else {
             (
-                "/run/readsb/aircraft.json".to_string(),
+                "http://127.0.0.1:8080/data/aircraft.json".to_string(),
                 "/run/readsb/stats.json".to_string(),
                 "/run/readsb/outline.json".to_string(),
             )
         };
 
-        // Detect collectd RRD directory
-        let (dump_rrd, cpu_rrd, temp_rrd) = if Path::new("/run/collectd/localhost/dump1090-localhost").exists() {
-            (
-                "/run/collectd/localhost/dump1090-localhost".to_string(),
-                "/run/collectd/localhost/aggregation-cpu-average".to_string(),
-                "/run/collectd/localhost/table-localhost".to_string(),
-            )
-        } else if Path::new("/var/lib/collectd/rrd/localhost/dump1090-localhost").exists() {
-            (
-                "/var/lib/collectd/rrd/localhost/dump1090-localhost".to_string(),
-                "/var/lib/collectd/rrd/localhost/aggregation-cpu-average".to_string(),
-                "/var/lib/collectd/rrd/localhost/table-localhost".to_string(),
-            )
-        } else {
-            (
-                "/run/collectd/localhost/dump1090-localhost".to_string(),
-                "/run/collectd/localhost/aggregation-cpu-average".to_string(),
-                "/run/collectd/localhost/table-localhost".to_string(),
-            )
-        };
+        // Detect collectd RRD directory (standard bare-metal & Ultrafeeder containers)
+        let rrd_candidates = [
+            env_rrd.as_deref().unwrap_or(""),
+            "/run/collectd/localhost",
+            "/run/collectd",
+            "/var/lib/collectd/rrd/localhost",
+            "/var/lib/collectd/rrd",
+            "/opt/adsb/ultrafeeder/graphs1090/rrd/localhost",
+            "/opt/adsb/ultrafeeder/graphs1090/localhost",
+            "/opt/adsb/ultrafeeder/graphs1090/rrd",
+            "/opt/adsb/ultrafeeder/graphs1090",
+            "/var/lib/docker/volumes/ultrafeeder_graphs1090/_data/rrd/localhost",
+            "/var/lib/docker/volumes/ultrafeeder_graphs1090/_data/localhost",
+            "/var/lib/docker/volumes/ultrafeeder_graphs1090/_data",
+        ];
+
+        let mut found_dump = None;
+        let mut found_cpu = None;
+        let mut found_temp = None;
+
+        for base in rrd_candidates {
+            if base.is_empty() { continue; }
+            let p_dump = Path::new(base).join("dump1090-localhost");
+            if p_dump.exists() {
+                found_dump = Some(p_dump.to_string_lossy().to_string());
+                found_cpu = Some(Path::new(base).join("aggregation-cpu-average").to_string_lossy().to_string());
+                found_temp = Some(Path::new(base).join("table-localhost").to_string_lossy().to_string());
+                break;
+            }
+        }
+
+        let dump_rrd = found_dump.unwrap_or_else(|| "/run/collectd/localhost/dump1090-localhost".to_string());
+        let cpu_rrd = found_cpu.unwrap_or_else(|| "/run/collectd/localhost/aggregation-cpu-average".to_string());
+        let temp_rrd = found_temp.unwrap_or_else(|| "/run/collectd/localhost/table-localhost".to_string());
 
         Self {
             name,
@@ -724,11 +754,36 @@ pub async fn handle_detect() -> impl IntoResponse {
         }
     }
 
-    if Path::new("/run/readsb/aircraft.json").exists() || Path::new("/run/dump1090-fa/aircraft.json").exists() {
-        readsb_found = true;
+    if !readsb_found {
+        for url in &["http://127.0.0.1:8080/data/receiver.json", "http://127.0.0.1/data/receiver.json"] {
+            if let Ok(resp) = ureq::get(*url).call() {
+                if let Ok(text) = resp.into_body().read_to_string() {
+                    if let Ok(val) = serde_json::from_str::<Value>(&text) {
+                        detected_lat = val.get("lat").and_then(|v| v.as_f64());
+                        detected_lon = val.get("lon").and_then(|v| v.as_f64());
+                        readsb_found = true;
+                        break;
+                    }
+                }
+            }
+        }
     }
 
-    if Path::new("/run/collectd/localhost/dump1090-localhost").exists() || Path::new("/var/lib/collectd/rrd/localhost/dump1090-localhost").exists() {
+    if Path::new("/run/readsb/aircraft.json").exists() || Path::new("/run/dump1090-fa/aircraft.json").exists() {
+        readsb_found = true;
+    } else if !readsb_found {
+        for url in &["http://127.0.0.1:8080/data/aircraft.json", "http://127.0.0.1/data/aircraft.json"] {
+            if let Ok(resp) = ureq::get(*url).call() {
+                if resp.status().is_success() {
+                    readsb_found = true;
+                    break;
+                }
+            }
+        }
+    }
+
+    let cfg = CONFIG.read().unwrap();
+    if Path::new(&cfg.dump_rrd).exists() {
         rrd_found = true;
     }
 
@@ -776,7 +831,34 @@ pub async fn handle_live() -> impl IntoResponse {
         ("> 200 NM", 0),
     ]);
 
-    if let Ok(raw) = fs::read_to_string(&cfg.aircraft_json) {
+    let raw_opt: Option<String> = if cfg.aircraft_json.starts_with("http://") || cfg.aircraft_json.starts_with("https://") {
+        ureq::get(&cfg.aircraft_json)
+            .call()
+            .ok()
+            .and_then(|r| r.into_body().read_to_string().ok())
+    } else if Path::new(&cfg.aircraft_json).exists() {
+        fs::read_to_string(&cfg.aircraft_json).ok()
+    } else {
+        let mut probed = None;
+        for probe in &[
+            "http://127.0.0.1:8080/data/aircraft.json",
+            "http://127.0.0.1/data/aircraft.json",
+            "http://127.0.0.1:8080/tar1090/data/aircraft.json",
+            "http://127.0.0.1/tar1090/data/aircraft.json",
+            "http://ultrafeeder/data/aircraft.json",
+            "http://ultrafeeder:8080/data/aircraft.json",
+        ] {
+            if let Ok(resp) = ureq::get(*probe).call() {
+                if let Ok(body) = resp.into_body().read_to_string() {
+                    probed = Some(body);
+                    break;
+                }
+            }
+        }
+        probed
+    };
+
+    if let Some(raw) = raw_opt {
         if let Ok(ac_val) = serde_json::from_str::<Value>(&raw) {
             if let Some(list) = ac_val.get("aircraft").and_then(|v| v.as_array()) {
                 total_ac = list.len();

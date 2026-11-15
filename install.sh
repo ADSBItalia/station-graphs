@@ -128,20 +128,79 @@ fi
 
 if [[ -f /opt/adsbitalia-station-radar/config.json ]]; then
   # Read name from station-radar config
-  RADAR_NAME=$(grep -o '"station_name": *"[^"]*"' /opt/adsbitalia-station-radar/config.json | cut -d'"' -f4 || true)
+  RADAR_NAME=$(grep -o '"name": *"[^"]*"' /opt/adsbitalia-station-radar/config.json | head -n1 | cut -d'"' -f4 || true)
   if [[ -n "${RADAR_NAME}" ]]; then
     STATION_NAME="${RADAR_NAME}"
   fi
 fi
 
+# Detect Ultrafeeder or local ADS-B source
+AIRCRAFT_SOURCE=""
+if [ -f "/run/readsb/aircraft.json" ]; then
+  AIRCRAFT_SOURCE="/run/readsb/aircraft.json"
+elif [ -f "/run/dump1090-fa/aircraft.json" ]; then
+  AIRCRAFT_SOURCE="/run/dump1090-fa/aircraft.json"
+elif command -v docker >/dev/null 2>&1 && docker ps 2>/dev/null | grep -qi "ultrafeeder"; then
+  UF_CID=$(docker ps -q --filter "name=ultrafeeder" | head -n1)
+  UF_PORT=$(docker port "$UF_CID" 80 2>/dev/null | awk -F: '{print $NF}' | head -n1 || echo "")
+  [ -z "$UF_PORT" ] && UF_PORT=$(docker port "$UF_CID" 8080 2>/dev/null | awk -F: '{print $NF}' | head -n1 || echo "")
+  [ -z "$UF_PORT" ] && UF_PORT="8080"
+  AIRCRAFT_SOURCE="http://127.0.0.1:${UF_PORT}/data/aircraft.json"
+  info "Detected Ultrafeeder container! Connecting live stream to ${AIRCRAFT_SOURCE}"
+else
+  for probe_url in "http://127.0.0.1:8080/data/aircraft.json" "http://127.0.0.1/data/aircraft.json"; do
+    if curl -s -m 2 "$probe_url" 2>/dev/null | grep -q "aircraft"; then
+      AIRCRAFT_SOURCE="$probe_url"
+      info "Detected active ADS-B stream at ${AIRCRAFT_SOURCE}"
+      break
+    fi
+  done
+fi
+
+# Detect collectd RRD directory
+RRD_SOURCE=""
+for cand in \
+  "/run/collectd/localhost/dump1090-localhost" \
+  "/var/lib/collectd/rrd/localhost/dump1090-localhost" \
+  "/opt/adsb/ultrafeeder/graphs1090/rrd/localhost/dump1090-localhost" \
+  "/opt/adsb/ultrafeeder/graphs1090/localhost/dump1090-localhost" \
+  "/var/lib/docker/volumes/ultrafeeder_graphs1090/_data/rrd/localhost/dump1090-localhost"; do
+  if [ -d "$cand" ]; then
+    RRD_SOURCE="$(dirname "$cand")"
+    info "Detected collectd RRD metrics directory at ${RRD_SOURCE}"
+    break
+  fi
+done
+
 # Write config if not present
 if [[ ! -f "${INSTALL_DIR}/config.json" ]]; then
-  cat > "${INSTALL_DIR}/config.json" <<EOF
+  if [[ -n "${AIRCRAFT_SOURCE}" ]] && [[ -n "${RRD_SOURCE}" ]]; then
+    cat > "${INSTALL_DIR}/config.json" <<EOF
+{
+  "station_name": "${STATION_NAME}",
+  "port": ${DEFAULT_PORT},
+  "aircraft_json": "${AIRCRAFT_SOURCE}",
+  "dump_rrd": "${RRD_SOURCE}/dump1090-localhost",
+  "cpu_rrd": "${RRD_SOURCE}/aggregation-cpu-average",
+  "temp_rrd": "${RRD_SOURCE}/table-localhost"
+}
+EOF
+  elif [[ -n "${AIRCRAFT_SOURCE}" ]]; then
+    cat > "${INSTALL_DIR}/config.json" <<EOF
+{
+  "station_name": "${STATION_NAME}",
+  "port": ${DEFAULT_PORT},
+  "aircraft_json": "${AIRCRAFT_SOURCE}"
+}
+EOF
+  else
+    cat > "${INSTALL_DIR}/config.json" <<EOF
 {
   "station_name": "${STATION_NAME}",
   "port": ${DEFAULT_PORT}
 }
 EOF
+  fi
 fi
 
 # Create systemd service

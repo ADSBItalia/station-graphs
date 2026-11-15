@@ -9,8 +9,14 @@ services:
     ports:
       - "8085:8085"
     volumes:
+      # Bare-metal readsb and collectd:
       - /run/readsb:/run/readsb:ro
       - /run/collectd:/run/collectd:ro
+      # Or Ultrafeeder host mount (uncomment if using Ultrafeeder on host):
+      # - /opt/adsb/ultrafeeder/graphs1090:/opt/adsb/ultrafeeder/graphs1090:ro
     environment:
       - PORT=8085
-      - STATION_NAME=ADSB Station
+      - STATION_NAME=ADS-B Station
+      # For Ultrafeeder integration (uncomment if using Ultrafeeder):
+      # - AIRCRAFT_URL=http://ultrafeeder/data/aircraft.json
+      # - COLLECTD_RRD_DIR=/opt/adsb/ultrafeeder/graphs1090
