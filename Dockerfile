@@ -1,5 +1,5 @@
-# Multi-stage build for multi-architecture Docker images (amd64, arm64)
-FROM rust:1.80-bookworm as builder
+# Multi-stage build for multi-architecture Docker images (amd64, arm64, arm/v7)
+FROM rust:1-bookworm AS builder
 RUN apt-get update && apt-get install -y --no-install-recommends librrd-dev pkg-config && rm -rf /var/lib/apt/lists/*
 WORKDIR /build
 COPY Cargo.toml Cargo.lock ./
