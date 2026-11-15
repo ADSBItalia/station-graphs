@@ -337,12 +337,12 @@
 
   <div class="container">
     <header class="nav-header">
-      <a href="/" class="brand">
+      <a href="./" class="brand">
         <img src="favicon.svg" alt="Station Logo" width="32" height="32">
         <span class="brand-title">STATION TELEMETRY SETTINGS</span>
       </a>
       <div class="nav-actions">
-        <a href="/" class="btn-link">← Telemetry Dashboard</a>
+        <a href="./" class="btn-link">← Telemetry Dashboard</a>
         <a href="#" id="linkRadarMap" target="_blank" class="btn-link">🗺️ Open Station Radar</a>
       </div>
     </header>
@@ -354,7 +354,7 @@
       <div class="form-grid">
         <div class="form-group">
           <label for="station_name">Station Name</label>
-          <input type="text" id="station_name" placeholder="e.g. Fiscaglia ADS-B Station">
+          <input type="text" id="station_name" placeholder="e.g. My ADS-B Station">
         </div>
         <div class="form-group">
           <label for="radar_url">Station Radar URL</label>
@@ -621,7 +621,7 @@
 
     async function loadCurrentConfig() {
       try {
-        const res = await fetch('/api/config');
+        const res = await fetch('api/config');
         if (!res.ok) return;
         const d = await res.json();
         
@@ -671,7 +671,7 @@
     async function checkPathStatus() {
       const badge = document.getElementById('pathStatusBadge');
       try {
-        const res = await fetch('/api/detect');
+        const res = await fetch('api/detect');
         if (res.ok) {
           const d = await res.json();
           if (d.readsb_detected && d.rrd_detected) {
@@ -693,7 +693,7 @@
 
     document.getElementById('btnDetectSystem').addEventListener('click', async () => {
       try {
-        const res = await fetch('/api/detect');
+        const res = await fetch('api/detect');
         if (res.ok) {
           const d = await res.json();
           if (d.detected_lat && d.detected_lon) {
@@ -746,7 +746,7 @@
       };
 
       try {
-        const res = await fetch('/api/config', {
+        const res = await fetch('api/config', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify(payload)

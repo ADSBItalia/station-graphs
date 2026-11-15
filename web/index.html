@@ -771,15 +771,15 @@
     <!-- TOPNAV UNIFICATA -->
     <nav class="topnav" role="navigation" aria-label="Main Navigation">
       <div class="nav-wrapper">
-        <a href="/" class="brand-link" aria-label="Station Telemetry" title="Station Telemetry">
+        <a href="./" class="brand-link" aria-label="Station Telemetry" title="Station Telemetry">
           <img src="favicon.svg" alt="Logo" class="brand-logo" width="32" height="32">
           <span id="brandName" style="font-weight:700;font-size:15px;letter-spacing:0.5px;color:var(--cyan);margin-left:8px;">STATION TELEMETRY</span>
         </a>
 
         <ul class="nav-links">
-          <li><a href="/" class="active" data-i18n="navTelemetry">Telemetry</a></li>
+          <li><a href="./" class="active" data-i18n="navTelemetry">Telemetry</a></li>
           <li><a href="#" id="navRadarLink" target="_blank" data-i18n="navRadar">Live Radar</a></li>
-          <li><a href="/settings.html" data-i18n="navSettings">⚙️ Settings</a></li>
+          <li><a href="settings.html" data-i18n="navSettings">⚙️ Settings</a></li>
           <li><a href="https://adsbitalia.it" target="_blank" rel="noopener noreferrer">ADSBItalia</a></li>
           <li><a href="https://github.com/ADSBItalia/station-graphs" target="_blank" rel="noopener noreferrer">GitHub</a></li>
         </ul>
@@ -1103,7 +1103,7 @@
 
     <!-- Footer -->
     <footer class="dashboard-footer">
-      <p id="txtFooter">Fiscaglia ADS-B Station · Powered by Stream1090 & ReadsB Demodulation · <a href="https://www.djrexishere.it" target="_blank">djrexishere.it</a></p>
+      <p id="txtFooter"><span id="footerStationName">ADS-B Station</span> · Powered by Stream1090 & ReadsB Demodulation · <a href="https://adsbitalia.it" target="_blank">ADSBItalia</a></p>
     </footer>
   </div>
 
@@ -1262,7 +1262,7 @@
     let rawPolarData = null;
     let rawLiveData = null;
 
-    const API_BASE = '/api';
+    const API_BASE = 'api';
 
     function formatTimeLabel(ts, range) {
       const d = new Date(ts * 1000);
