@@ -130,7 +130,21 @@ impl Default for StationConfig {
 
         // Environment variables override
         let env_rrd = std::env::var("COLLECTD_RRD_DIR").or_else(|_| std::env::var("RRD_DIR")).ok();
-        let env_aircraft = std::env::var("AIRCRAFT_URL").or_else(|_| std::env::var("AIRCRAFT_JSON")).ok();
+        let env_feeder = std::env::var("TAR1090_URL")
+            .or_else(|_| std::env::var("FEEDER_URL"))
+            .ok();
+        let env_aircraft = env_feeder.as_ref().map(|f| {
+            let clean = f.trim_end_matches('/');
+            if clean.ends_with("/aircraft.json") {
+                clean.to_string()
+            } else if clean.ends_with("/data") {
+                format!("{}/aircraft.json", clean)
+            } else {
+                format!("{}/data/aircraft.json", clean)
+            }
+        }).or_else(|| {
+            std::env::var("AIRCRAFT_URL").or_else(|_| std::env::var("AIRCRAFT_JSON")).ok()
+        });
 
         // Detect aircraft JSON directory
         let (aircraft_json, stats_json, outline_json) = if let Some(ref custom_ac) = env_aircraft {

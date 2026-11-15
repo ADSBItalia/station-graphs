@@ -80,7 +80,7 @@ services:
     environment:
       - PORT=8085
       - STATION_NAME=My ADS-B Station
-      - AIRCRAFT_URL=http://ultrafeeder/data/aircraft.json
+      - TAR1090_URL=http://ultrafeeder/
       - COLLECTD_RRD_DIR=/opt/adsb/ultrafeeder/graphs1090
 ```
 
