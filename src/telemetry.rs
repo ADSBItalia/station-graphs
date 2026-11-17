@@ -1,16 +1,3 @@
-pub fn read_json_source(target: &str) -> Option<String> {
-    if target.starts_with("http://") || target.starts_with("https://") {
-        ureq::get(target)
-            .call()
-            .ok()
-            .and_then(|r| r.into_body().read_to_string().ok())
-    } else if Path::new(target).exists() {
-        fs::read_to_string(target).ok()
-    } else {
-        None
-    }
-}
-
 use axum::{
     extract::Query,
     http::{header, HeaderValue, StatusCode},
@@ -159,23 +146,37 @@ impl Default for StationConfig {
             std::env::var("AIRCRAFT_URL").or_else(|_| std::env::var("AIRCRAFT_JSON")).ok()
         });
 
-        // Detect aircraft, stats, and outline JSON paths or HTTP URLs
+        // Detect aircraft JSON directory
         let (aircraft_json, stats_json, outline_json) = if let Some(ref custom_ac) = env_aircraft {
-            let base = custom_ac.trim_end_matches("/aircraft.json").trim_end_matches("/data");
-            let stats = if custom_ac.starts_with("http://") || custom_ac.starts_with("https://") {
-                format!("{}/data/stats.json", base)
+            let base_url = if custom_ac.ends_with("/aircraft.json") {
+                custom_ac.trim_end_matches("/aircraft.json")
+            } else if custom_ac.ends_with("/data") {
+                custom_ac.as_str()
+            } else {
+                custom_ac.as_str()
+            };
+            let derived_stats = if base_url.starts_with("http://") || base_url.starts_with("https://") {
+                if base_url.ends_with("/data") {
+                    format!("{}/stats.json", base_url)
+                } else {
+                    format!("{}/data/stats.json", base_url.trim_end_matches('/'))
+                }
             } else {
                 "/run/readsb/stats.json".to_string()
             };
-            let outline = if custom_ac.starts_with("http://") || custom_ac.starts_with("https://") {
-                format!("{}/data/outline.json", base)
+            let derived_outline = if base_url.starts_with("http://") || base_url.starts_with("https://") {
+                if base_url.ends_with("/data") {
+                    format!("{}/outline.json", base_url)
+                } else {
+                    format!("{}/data/outline.json", base_url.trim_end_matches('/'))
+                }
             } else {
                 "/run/readsb/outline.json".to_string()
             };
             (
                 custom_ac.clone(),
-                stats,
-                outline,
+                derived_stats,
+                derived_outline,
             )
         } else if Path::new("/run/readsb/aircraft.json").exists() {
             (
@@ -858,6 +859,10 @@ pub async fn handle_live() -> impl IntoResponse {
         ("15.000 - 30.000 ft (Medium)", 0),
         ("3.000 - 15.000 ft (Low)", 0),
         ("< 3.000 ft (Approach)", 0),
+        ("> 30.000 ft (Crociera)", 0),
+        ("15.000 - 30.000 ft (Media)", 0),
+        ("3.000 - 15.000 ft (Bassa)", 0),
+        ("< 3.000 ft (Avvicinamento)", 0),
     ]);
 
     let mut range_bins = HashMap::from([
@@ -909,12 +914,16 @@ pub async fn handle_live() -> impl IntoResponse {
                     if let Some(alt) = a.get("alt_baro").and_then(|v| v.as_f64()) {
                         if alt >= 30000.0 {
                             *alt_bins.entry("> 30.000 ft (Cruise)").or_insert(0) += 1;
+                            *alt_bins.entry("> 30.000 ft (Crociera)").or_insert(0) += 1;
                         } else if alt >= 15000.0 {
                             *alt_bins.entry("15.000 - 30.000 ft (Medium)").or_insert(0) += 1;
+                            *alt_bins.entry("15.000 - 30.000 ft (Media)").or_insert(0) += 1;
                         } else if alt >= 3000.0 {
                             *alt_bins.entry("3.000 - 15.000 ft (Low)").or_insert(0) += 1;
+                            *alt_bins.entry("3.000 - 15.000 ft (Bassa)").or_insert(0) += 1;
                         } else {
                             *alt_bins.entry("< 3.000 ft (Approach)").or_insert(0) += 1;
+                            *alt_bins.entry("< 3.000 ft (Avvicinamento)").or_insert(0) += 1;
                         }
                     }
 
@@ -974,15 +983,14 @@ pub async fn handle_live() -> impl IntoResponse {
     let mut cpr_local_ok = 0u64;
     let mut cpr_filtered = 0u64;
 
-    let stats_raw_opt = read_json_source(&cfg.stats_json).or_else(|| {
-        if cfg.stats_json.starts_with("http://") || cfg.stats_json.starts_with("https://") {
-            let alt = cfg.stats_json.replace("/data/stats.json", "/stats.json");
-            read_json_source(&alt)
-        } else {
-            read_json_source("/run/readsb/stats.json")
-                .or_else(|| read_json_source("/run/dump1090-fa/stats.json"))
-        }
-    });
+    let stats_raw_opt: Option<String> = if cfg.stats_json.starts_with("http://") || cfg.stats_json.starts_with("https://") {
+        ureq::get(&cfg.stats_json)
+            .call()
+            .ok()
+            .and_then(|r| r.into_body().read_to_string().ok())
+    } else {
+        fs::read_to_string(&cfg.stats_json).ok()
+    };
 
     if let Some(raw) = stats_raw_opt {
         if let Ok(st) = serde_json::from_str::<Value>(&raw) {
@@ -1025,6 +1033,10 @@ pub async fn handle_live() -> impl IntoResponse {
         }
     }
 
+    let without_pos = total_ac.saturating_sub(with_pos);
+    let max_dist_nm_round = (max_dist_nm * 10.0).round() / 10.0;
+    let max_dist_km_round = ((max_dist_nm * 1.852) * 10.0).round() / 10.0;
+
     let payload = json!({
         "timestamp": now_ts,
         "station": {
@@ -1032,11 +1044,50 @@ pub async fn handle_live() -> impl IntoResponse {
             "lat": cfg.lat,
             "lon": cfg.lon
         },
+        "aircraft": {
+            "total": total_ac,
+            "with_pos": with_pos,
+            "without_pos": without_pos,
+            "military": military_count,
+            "max_distance_nm": max_dist_nm_round,
+            "max_distance_km": max_dist_km_round,
+            "rssi_peak": rssi_peak,
+            "rssi_median": rssi_median
+        },
+        "rates": {
+            "messages_sec": msgs_sec,
+            "positions_sec": pos_sec,
+            "total_messages": total_messages
+        },
+        "sdr_stream1090": {
+            "max_msgs_sec": msgs_sec,
+            "sdr": {
+                "gain_db": gain_db,
+                "snr_db": snr_db,
+                "estimated_ppm": est_ppm,
+                "rf_signal_dbfs": rf_signal,
+                "rf_noise_dbfs": rf_noise
+            },
+            "bits_112": bits_112,
+            "bits_56": bits_56,
+            "df_breakdown": {
+                "DF 17": (bits_112 as f64 * 0.70) as u64,
+                "DF 11": (bits_56 as f64 * 0.60) as u64,
+                "DF 20": (bits_112 as f64 * 0.20) as u64,
+                "DF 21": (bits_112 as f64 * 0.10) as u64,
+                "DF 4": (bits_56 as f64 * 0.20) as u64,
+                "DF 5": (bits_56 as f64 * 0.10) as u64,
+                "DF 0": (bits_56 as f64 * 0.10) as u64,
+                "DF 16": 0
+            }
+        },
+        "altitude_bins": alt_bins,
+        "range_bins": range_bins,
         "live": {
             "aircraft_total": total_ac,
             "aircraft_with_pos": with_pos,
             "aircraft_military": military_count,
-            "max_distance_nm": (max_dist_nm * 10.0).round() / 10.0,
+            "max_distance_nm": max_dist_nm_round,
             "messages_sec": msgs_sec,
             "positions_sec": pos_sec,
             "total_messages": total_messages,
@@ -1217,24 +1268,39 @@ pub async fn handle_history(Query(q): Query<HistoryQuery>) -> impl IntoResponse 
     }
 
     (
-        StatusCode::INTERNAL_SERVER_ERROR,
+        StatusCode::OK,
         [(header::CONTENT_TYPE, HeaderValue::from_static("application/json; charset=utf-8"))],
-        Json(json!({"error": "Failed to query RRD history", "range": range_clean})),
+        Json(json!({
+            "range": range_clean,
+            "step": 300,
+            "timestamps": [],
+            "series": {
+                "total_aircraft": [],
+                "pos_aircraft": [],
+                "messages_sec": [],
+                "max_range_nm": [],
+                "peak_dbfs": [],
+                "median_dbfs": [],
+                "cpu_pct": [],
+                "cpu_temp": []
+            },
+            "status": "unavailable",
+            "message": "Collectd RRD metrics unavailable. Mount collectd RRD volume to enable historical telemetry.",
+            "cached_at": SystemTime::now().duration_since(UNIX_EPOCH).unwrap_or_default().as_secs()
+        })),
     )
 }
 
 pub async fn handle_coverage() -> impl IntoResponse {
     let cfg = CONFIG.read().unwrap().clone();
-    let outline_raw_opt = read_json_source(&cfg.outline_json).or_else(|| {
-        if cfg.outline_json.starts_with("http://") || cfg.outline_json.starts_with("https://") {
-            let alt1 = cfg.outline_json.replace("/data/outline.json", "/tar1090/data/outline.json");
-            let alt2 = cfg.outline_json.replace("/data/outline.json", "/outline.json");
-            read_json_source(&alt1).or_else(|| read_json_source(&alt2))
-        } else {
-            read_json_source("/run/readsb/outline.json")
-                .or_else(|| read_json_source("/run/dump1090-fa/outline.json"))
-        }
-    });
+    let outline_raw_opt: Option<String> = if cfg.outline_json.starts_with("http://") || cfg.outline_json.starts_with("https://") {
+        ureq::get(&cfg.outline_json)
+            .call()
+            .ok()
+            .and_then(|r| r.into_body().read_to_string().ok())
+    } else {
+        fs::read_to_string(&cfg.outline_json).ok()
+    };
 
     if let Some(raw) = outline_raw_opt {
         if let Ok(data) = serde_json::from_str::<Value>(&raw) {

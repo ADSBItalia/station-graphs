@@ -771,15 +771,15 @@
     <!-- TOPNAV UNIFICATA -->
     <nav class="topnav" role="navigation" aria-label="Main Navigation">
       <div class="nav-wrapper">
-        <a href="./" class="brand-link" aria-label="Station Telemetry" title="Station Telemetry">
+        <a href="/" class="brand-link" aria-label="Station Telemetry" title="Station Telemetry">
           <img src="favicon.svg" alt="Logo" class="brand-logo" width="32" height="32">
           <span id="brandName" style="font-weight:700;font-size:15px;letter-spacing:0.5px;color:var(--cyan);margin-left:8px;">STATION TELEMETRY</span>
         </a>
 
         <ul class="nav-links">
-          <li><a href="./" class="active" data-i18n="navTelemetry">Telemetry</a></li>
+          <li><a href="/" class="active" data-i18n="navTelemetry">Telemetry</a></li>
           <li><a href="#" id="navRadarLink" target="_blank" data-i18n="navRadar">Live Radar</a></li>
-          <li><a href="settings.html" data-i18n="navSettings">⚙️ Settings</a></li>
+          <li><a href="/settings.html" data-i18n="navSettings">⚙️ Settings</a></li>
           <li><a href="https://adsbitalia.it" target="_blank" rel="noopener noreferrer">ADSBItalia</a></li>
           <li><a href="https://github.com/ADSBItalia/station-graphs" target="_blank" rel="noopener noreferrer">GitHub</a></li>
         </ul>
@@ -1103,7 +1103,7 @@
 
     <!-- Footer -->
     <footer class="dashboard-footer">
-      <p id="txtFooter"><span id="footerStationName">ADS-B Station</span> · Powered by Stream1090 & ReadsB Demodulation · <a href="https://adsbitalia.it" target="_blank">ADSBItalia</a></p>
+      <p id="txtFooter">Fiscaglia ADS-B Station · Powered by Stream1090 & ReadsB Demodulation · <a href="https://www.djrexishere.it" target="_blank">djrexishere.it</a></p>
     </footer>
   </div>
 
@@ -1262,7 +1262,15 @@
     let rawPolarData = null;
     let rawLiveData = null;
 
-    const API_BASE = 'api';
+    // Automatically detect API_BASE for subpath proxy deployments (e.g., /station-graphs/ or /graphs/)
+    const getApiBase = () => {
+      let p = window.location.pathname || '';
+      if (p.endsWith('.html') || p.endsWith('/')) {
+        p = p.substring(0, p.lastIndexOf('/'));
+      }
+      return p && p !== '/' ? `${p}/api` : '/api';
+    };
+    const API_BASE = getApiBase();
 
     function formatTimeLabel(ts, range) {
       const d = new Date(ts * 1000);
@@ -1701,32 +1709,40 @@
     function renderLiveMetrics(d) {
       rawLiveData = d;
       const t = I18N[currentLang] || I18N.en;
-      const ac = d.aircraft || {};
-      document.getElementById('kpi-aircraft').textContent = ac.total != null ? ac.total : '--';
-      document.getElementById('kpi-pos-sub').textContent = `${t.kpiWithPos} ${ac.with_pos || 0}`;
-      document.getElementById('kpi-nopos-sub').textContent = `${t.kpiModeS} ${ac.without_pos || 0}`;
+      const ac = d.aircraft || d.live || {};
+      const totalAc = ac.total != null ? ac.total : (ac.aircraft_total != null ? ac.aircraft_total : '--');
+      document.getElementById('kpi-aircraft').textContent = totalAc;
+      const withPos = ac.with_pos != null ? ac.with_pos : (ac.aircraft_with_pos != null ? ac.aircraft_with_pos : 0);
+      const withoutPos = ac.without_pos != null ? ac.without_pos : (typeof totalAc === 'number' ? Math.max(0, totalAc - withPos) : 0);
+      document.getElementById('kpi-pos-sub').textContent = `${t.kpiWithPos} ${withPos}`;
+      document.getElementById('kpi-nopos-sub').textContent = `${t.kpiModeS} ${withoutPos}`;
 
-      const rt = d.rates || {};
-      document.getElementById('kpi-msg-rate').innerHTML = `${rt.messages_sec != null ? rt.messages_sec : '--'} <span class="unit">msg/s</span>`;
-      document.getElementById('kpi-pos-rate').textContent = `${t.kpiPosRate} ${rt.positions_sec || 0} /s`;
+      const rt = d.rates || d.live || {};
+      const msgRate = rt.messages_sec != null ? rt.messages_sec : '--';
+      document.getElementById('kpi-msg-rate').innerHTML = `${msgRate} <span class="unit">msg/s</span>`;
+      document.getElementById('kpi-pos-rate').textContent = `${t.kpiPosRate} ${rt.positions_sec != null ? rt.positions_sec : 0} /s`;
       if (rt.total_messages) {
         const totM = (rt.total_messages / 1000000).toFixed(1);
         document.getElementById('kpi-tot-msg').textContent = `${t.kpiTotal} ${totM}M`;
       }
 
       // Range KPI (Nautical vs Metric)
+      const maxNm = ac.max_distance_nm != null ? ac.max_distance_nm : (d.live && d.live.max_distance_nm != null ? d.live.max_distance_nm : null);
+      const maxKm = ac.max_distance_km != null ? ac.max_distance_km : (maxNm != null ? (maxNm * 1.852).toFixed(1) : null);
       if (isMetric) {
-        document.getElementById('kpi-range-main').innerHTML = `${ac.max_distance_km != null ? ac.max_distance_km : '--'} <span class="unit">km</span>`;
-        document.getElementById('kpi-range-sub').textContent = `${ac.max_distance_nm || 0} NM`;
+        document.getElementById('kpi-range-main').innerHTML = `${maxKm != null ? maxKm : '--'} <span class="unit">km</span>`;
+        document.getElementById('kpi-range-sub').textContent = `${maxNm || 0} NM`;
       } else {
-        document.getElementById('kpi-range-main').innerHTML = `${ac.max_distance_nm != null ? ac.max_distance_nm : '--'} <span class="unit">NM</span>`;
-        document.getElementById('kpi-range-sub').textContent = `${ac.max_distance_km || 0} km`;
+        document.getElementById('kpi-range-main').innerHTML = `${maxNm != null ? maxNm : '--'} <span class="unit">NM</span>`;
+        document.getElementById('kpi-range-sub').textContent = `${maxKm || 0} km`;
       }
 
       // RSSI
-      document.getElementById('kpi-rssi').innerHTML = `${ac.rssi_median != null ? ac.rssi_median : '--'} <span class="unit">dBFS</span>`;
-      document.getElementById('kpi-rssi-peak').textContent = `${t.kpiRssiPeak} ${ac.rssi_peak != null ? ac.rssi_peak : '--'} dBFS`;
-      document.getElementById('kpi-rssi-med').textContent = `${t.kpiRssiMed} ${ac.rssi_median != null ? ac.rssi_median : '--'} dBFS`;
+      const rssiMed = ac.rssi_median != null ? ac.rssi_median : (d.live && d.live.rssi_median != null ? d.live.rssi_median : null);
+      const rssiPk = ac.rssi_peak != null ? ac.rssi_peak : (d.live && d.live.rssi_peak != null ? d.live.rssi_peak : null);
+      document.getElementById('kpi-rssi').innerHTML = `${rssiMed != null ? rssiMed : '--'} <span class="unit">dBFS</span>`;
+      document.getElementById('kpi-rssi-peak').textContent = `${t.kpiRssiPeak} ${rssiPk != null ? rssiPk : '--'} dBFS`;
+      document.getElementById('kpi-rssi-med').textContent = `${t.kpiRssiMed} ${rssiMed != null ? rssiMed : '--'} dBFS`;
 
       // Hardware System
       const sys = d.system || {};
@@ -1788,20 +1804,21 @@
       }
 
       // Altitude Bins Chart
-      if (d.altitude_bins && charts.alt) {
-        const ab = d.altitude_bins;
+      const ab = d.altitude_bins || (d.distributions && d.distributions.altitude);
+      if (ab && charts.alt) {
         charts.alt.data.labels = isMetric ? ['> 9,000m', '4.5k-9k m', '1k-4.5k m', '< 1,000m'] : ['> 30k ft', '15k-30k ft', '3k-15k ft', '< 3k ft'];
         charts.alt.data.datasets[0].data = [
-          ab['> 30.000 ft (Crociera)'] || 0,
-          ab['15.000 - 30.000 ft (Media)'] || 0,
-          ab['3.000 - 15.000 ft (Bassa)'] || 0,
-          ab['< 3.000 ft (Avvicinamento)'] || 0
+          ab['> 30.000 ft (Crociera)'] || ab['> 30.000 ft (Cruise)'] || 0,
+          ab['15.000 - 30.000 ft (Media)'] || ab['15.000 - 30.000 ft (Medium)'] || 0,
+          ab['3.000 - 15.000 ft (Bassa)'] || ab['3.000 - 15.000 ft (Low)'] || 0,
+          ab['< 3.000 ft (Avvicinamento)'] || ab['< 3.000 ft (Approach)'] || 0
         ];
         charts.alt.update('none');
       }
 
       // Range Bins Chart
-      if (d.range_bins && charts.rangeBins) {
+      const rb = d.range_bins || (d.distributions && d.distributions.range);
+      if (rb && charts.rangeBins) {
         const rb = d.range_bins;
         charts.rangeBins.data.labels = isMetric ? ['0-46 km', '46-92 km', '92-185 km', '185-278 km', '278-370 km', '>370 km'] : ['0-25 NM', '25-50 NM', '50-100 NM', '100-150 NM', '150-200 NM', '>200 NM'];
         charts.rangeBins.data.datasets[0].data = [

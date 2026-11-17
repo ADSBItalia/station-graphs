@@ -74,9 +74,16 @@ async fn main() {
         .route("/api/live", get(telemetry::handle_live))
         .route("/api/history", get(telemetry::handle_history))
         .route("/api/coverage", get(telemetry::handle_coverage))
+        .route("/graphs/api/config", get(telemetry::handle_config).post(telemetry::save_config))
+        .route("/graphs/api/detect", get(telemetry::handle_detect))
         .route("/graphs/api/live", get(telemetry::handle_live))
         .route("/graphs/api/history", get(telemetry::handle_history))
         .route("/graphs/api/coverage", get(telemetry::handle_coverage))
+        .route("/station-graphs/api/config", get(telemetry::handle_config).post(telemetry::save_config))
+        .route("/station-graphs/api/detect", get(telemetry::handle_detect))
+        .route("/station-graphs/api/live", get(telemetry::handle_live))
+        .route("/station-graphs/api/history", get(telemetry::handle_history))
+        .route("/station-graphs/api/coverage", get(telemetry::handle_coverage))
         .fallback_service(ServeDir::new(web_dir))
         .layer(SetResponseHeaderLayer::overriding(
             header::HeaderName::from_static("x-backend"),
